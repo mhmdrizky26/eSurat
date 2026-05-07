@@ -23,14 +23,75 @@ export default function Login({ onLogin, onSwitch }) {
 
   return (
     <div className="container">
-      <h2>Login</h2>
-      {error && <div style={{color: 'red', marginBottom: '1rem'}}>{error}</div>}
-      <form onSubmit={submit}>
-        <input placeholder="officer@gamil.com / citizen@gamil.com" value={email} onChange={e => setEmail(e.target.value)} disabled={loading} />
-        <input placeholder="password" type="password" value={password} onChange={e => setPassword(e.target.value)} disabled={loading} />
-        <button type="submit" disabled={loading}>{loading ? 'Loading...' : 'Login'}</button>
-      </form>
-      <p>Belum punya akun? <button onClick={onSwitch}>Daftar</button></p>
+      <div className="envelope">
+        <div className="masthead">
+          <div className="crest">eS</div>
+          <h1>eSurat</h1>
+          <p className="tagline">Pelayanan Korespondensi Publik</p>
+        </div>
+
+        <p className="smallcaps" style={{ textAlign: 'center', marginBottom: 18 }}>
+          — Masuk ke Akun Anda —
+        </p>
+
+        {error && <div className="notice error">{error}</div>}
+
+        <form onSubmit={submit}>
+          <div className="field">
+            <label>Alamat Surel</label>
+            <input
+              type="email"
+              placeholder="nama@contoh.com"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+              disabled={loading}
+              required
+            />
+          </div>
+
+          <div className="field">
+            <label>Kata Sandi</label>
+            <input
+              type="password"
+              placeholder="••••••••"
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              disabled={loading}
+              required
+            />
+          </div>
+
+          <button type="submit" disabled={loading} style={{ width: '100%', marginTop: 8 }}>
+            {loading ? 'Memverifikasi…' : 'Masuk'}
+          </button>
+        </form>
+
+        <div className="demo-creds">
+          <span className="smallcaps">Akun Demonstrasi</span>
+          <div className="row">
+            <span><em>Petugas</em></span>
+            <code>officer@gmail.com</code>
+          </div>
+          <div className="row">
+            <span><em>Warga</em></span>
+            <code>citizen@gmail.com</code>
+          </div>
+          <div className="row" style={{ marginTop: 6 }}>
+            <span style={{ fontSize: '0.85rem', color: 'var(--ink-muted)' }}>
+              Gunakan kata sandi sesuai akun yang dibuat.
+            </span>
+          </div>
+        </div>
+
+        <div className="divider"><span>atau</span></div>
+
+        <p style={{ textAlign: 'center', fontStyle: 'italic', color: 'var(--ink-muted)' }}>
+          Belum memiliki akun?{' '}
+          <button className="linklike" onClick={onSwitch} disabled={loading}>
+            Daftarkan diri di sini
+          </button>
+        </p>
+      </div>
     </div>
   )
 }

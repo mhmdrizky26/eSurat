@@ -7,6 +7,7 @@ on:
   workflow_dispatch:
 
 env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
   AWS_REGION: us-east-1
   AWS_ACCOUNT_ID: 653483324747
   BACKEND_ECR_REPOSITORY: repo-esurat

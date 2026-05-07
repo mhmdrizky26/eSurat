@@ -22,17 +22,96 @@ export default function Register({ onRegister, onSwitch }) {
     }
   }
 
+  // Password strength indicator (display only, doesn't affect submit)
+  const strength = password.length === 0
+    ? null
+    : password.length < 6
+      ? 'Lemah'
+      : password.length < 10
+        ? 'Cukup'
+        : 'Kuat'
+
   return (
     <div className="container">
-      <h2>Register</h2>
-      {error && <div style={{color: 'red', marginBottom: '1rem'}}>{error}</div>}
-      <form onSubmit={submit}>
-        <input placeholder="name" value={name} onChange={e => setName(e.target.value)} disabled={loading} />
-        <input placeholder="email" value={email} onChange={e => setEmail(e.target.value)} disabled={loading} />
-        <input placeholder="password" type="password" value={password} onChange={e => setPassword(e.target.value)} disabled={loading} />
-        <button type="submit" disabled={loading}>{loading ? 'Loading...' : 'Register'}</button>
-      </form>
-      <p>Sudah punya akun? <button onClick={onSwitch}>Login</button></p>
+      <div className="envelope">
+        <div className="masthead">
+          <div className="crest">eS</div>
+          <h1>eSurat</h1>
+          <p className="tagline">Pelayanan Korespondensi Publik</p>
+        </div>
+
+        <p className="smallcaps" style={{ textAlign: 'center', marginBottom: 18 }}>
+          — Buat Akun Baru —
+        </p>
+
+        {error && <div className="notice error">{error}</div>}
+
+        <form onSubmit={submit}>
+          <div className="field">
+            <label>Nama Lengkap</label>
+            <input
+              placeholder="cth. Budi Santoso"
+              value={name}
+              onChange={e => setName(e.target.value)}
+              disabled={loading}
+              required
+            />
+          </div>
+
+          <div className="field">
+            <label>Alamat Surel</label>
+            <input
+              type="email"
+              placeholder="nama@contoh.com"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+              disabled={loading}
+              required
+            />
+          </div>
+
+          <div className="field">
+            <label>Kata Sandi</label>
+            <input
+              type="password"
+              placeholder="Minimal 6 karakter"
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              disabled={loading}
+              required
+            />
+            {strength && (
+              <div className="preview-bar" style={{ marginTop: 6 }}>
+                <span>Kekuatan: <em>{strength}</em></span>
+                <span>{password.length} karakter</span>
+              </div>
+            )}
+          </div>
+
+          <button type="submit" disabled={loading} style={{ width: '100%', marginTop: 8 }}>
+            {loading ? 'Mendaftarkan…' : 'Daftar Sekarang'}
+          </button>
+        </form>
+
+        <div className="benefits">
+          <span className="smallcaps">Keuntungan Memiliki Akun</span>
+          <ul>
+            <li>Mengajukan surat permohonan kapan saja, di mana saja</li>
+            <li>Melampirkan dokumen pendukung secara digital</li>
+            <li>Memantau status surat secara langsung</li>
+            <li>Riwayat pengajuan tersimpan rapi</li>
+          </ul>
+        </div>
+
+        <div className="divider"><span>atau</span></div>
+
+        <p style={{ textAlign: 'center', fontStyle: 'italic', color: 'var(--ink-muted)' }}>
+          Sudah memiliki akun?{' '}
+          <button className="linklike" onClick={onSwitch} disabled={loading}>
+            Masuk di sini
+          </button>
+        </p>
+      </div>
     </div>
   )
 }
