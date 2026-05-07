@@ -1,0 +1,93 @@
+name: Deploy eSurat
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+env:
+  AWS_REGION: us-east-1
+  AWS_ACCOUNT_ID: 653483324747
+  BACKEND_ECR_REPOSITORY: repo-esurat
+  FRONTEND_ECR_REPOSITORY: repo-esurat-frontend
+  BACKEND_ECS_CLUSTER: cluster-esurat
+  BACKEND_ECS_SERVICE: esurat-task-service
+  FRONTEND_ECS_SERVICE: esurat-task-fe-service
+
+jobs:
+  deploy-backend:
+    name: Build and deploy backend
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push backend image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: latest
+        run: |
+          docker build -t "$ECR_REGISTRY/${BACKEND_ECR_REPOSITORY}:$IMAGE_TAG" -f backend/Dockerfile ./backend
+          docker push "$ECR_REGISTRY/${BACKEND_ECR_REPOSITORY}:$IMAGE_TAG"
+
+      - name: Force new backend deployment
+        run: |
+          aws ecs update-service \
+            --cluster "$BACKEND_ECS_CLUSTER" \
+            --service "$BACKEND_ECS_SERVICE" \
+            --force-new-deployment \
+            --region "$AWS_REGION"
+
+  deploy-frontend:
+    name: Build and deploy frontend
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push frontend image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: latest
+        run: |
+          docker build -t "$ECR_REGISTRY/${FRONTEND_ECR_REPOSITORY}:$IMAGE_TAG" -f frontend/Dockerfile ./frontend
+          docker push "$ECR_REGISTRY/${FRONTEND_ECR_REPOSITORY}:$IMAGE_TAG"
+
+      - name: Force new frontend deployment
+        run: |
+          aws ecs update-service \
+            --cluster "$BACKEND_ECS_CLUSTER" \
+            --service "$FRONTEND_ECS_SERVICE" \
+            --force-new-deployment \
+            --region "$AWS_REGION"
