@@ -1,14 +1,15 @@
 ﻿const db = require('../config/db');
-const fs = require('fs');
-const path = require('path');
-const { s3 } = require('../config/aws');
+const { s3, S3_BUCKET } = require('../config/aws');
 const { PutObjectCommand, GetObjectCommand } = require('@aws-sdk/client-s3');
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
-const util = require('util');
-const unlinkAsync = util.promisify(fs.unlink);
 
 function canAccessAllLetters(role) {
   return role === 'officer';
+}
+
+// Bersihkan nama file dari karakter aneh sebelum jadi key S3
+function sanitizeFilename(name) {
+  return String(name).replace(/[^\w.\-]+/g, '_').slice(0, 120);
 }
 
 exports.createLetter = async (req, res) => {
@@ -19,61 +20,51 @@ exports.createLetter = async (req, res) => {
 
   try {
     const [result] = await conn.query(
-      'INSERT INTO letters (user_id, letter_type, subject, body, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, NOW(), NOW())',
+      `INSERT INTO letters (user_id, letter_type, subject, body, status, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, NOW(), NOW())`,
       [user.id, letter_type || '', subject || '', body || '', 'submitted']
     );
     const letterId = result.insertId;
 
-    for (const file of files) {
-      if (process.env.S3_BUCKET) {
-        const fileStream = fs.createReadStream(file.path);
-        const key = `letters/${letterId}/${Date.now()}_${file.originalname}`;
-        await s3.send(new PutObjectCommand({
-          Bucket: process.env.S3_BUCKET,
-          Key: key,
-          Body: fileStream,
-          ContentType: file.mimetype
-        }));
-        await conn.query(
-          'INSERT INTO attachments (letter_id, s3_key, filename, mime_type, size) VALUES (?, ?, ?, ?, ?)',
-          [letterId, key, file.originalname, file.mimetype, file.size]
-        );
-        await unlinkAsync(file.path);
-      } else {
-        const dir = path.join(__dirname, '..', 'uploads', 'letters', String(letterId));
-        fs.mkdirSync(dir, { recursive: true });
-        const destName = `${Date.now()}_${file.originalname}`;
-        const destPath = path.join(dir, destName);
-        fs.renameSync(file.path, destPath);
-        const key = `letters/${letterId}/${destName}`;
-        await conn.query(
-          'INSERT INTO attachments (letter_id, s3_key, filename, mime_type, size) VALUES (?, ?, ?, ?, ?)',
-          [letterId, key, file.originalname, file.mimetype, file.size]
-        );
-      }
-    }
+    // Upload semua lampiran ke S3 (paralel)
+    await Promise.all(files.map(async file => {
+      const safeName = sanitizeFilename(file.originalname);
+      const key = `letters/${letterId}/${Date.now()}_${safeName}`;
 
-    res.json({ id: letterId, message: 'Letter submitted' });
+      await s3.send(new PutObjectCommand({
+        Bucket: S3_BUCKET,
+        Key: key,
+        Body: file.buffer,           // langsung dari memory, tidak lewat disk
+        ContentType: file.mimetype,
+        ContentDisposition: `attachment; filename="${safeName}"`,
+      }));
+
+      await conn.query(
+        `INSERT INTO attachments (letter_id, s3_key, filename, mime_type, size)
+         VALUES (?, ?, ?, ?, ?)`,
+        [letterId, key, file.originalname, file.mimetype, file.size]
+      );
+    }));
+
+    res.json({ id: letterId, message: 'Letter submitted', attachments: files.length });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: 'Server error' });
+    console.error('[createLetter]', err);
+    res.status(500).json({ message: 'Server error', error: err.message });
   }
 };
 
 exports.listLetters = async (req, res) => {
   const user = req.user;
   try {
-    let rows;
-    if (canAccessAllLetters(user.role)) {
-      const [result] = await db.promise().query('SELECT * FROM letters ORDER BY created_at DESC');
-      rows = result;
-    } else {
-      const [result] = await db.promise().query('SELECT * FROM letters WHERE user_id = ? ORDER BY created_at DESC', [user.id]);
-      rows = result;
-    }
+    const [rows] = canAccessAllLetters(user.role)
+      ? await db.promise().query('SELECT * FROM letters ORDER BY created_at DESC')
+      : await db.promise().query(
+          'SELECT * FROM letters WHERE user_id = ? ORDER BY created_at DESC',
+          [user.id]
+        );
     res.json(rows);
   } catch (err) {
-    console.error(err);
+    console.error('[listLetters]', err);
     res.status(500).json({ message: 'Server error' });
   }
 };
@@ -90,25 +81,35 @@ exports.getLetter = async (req, res) => {
       return res.status(403).json({ message: 'Forbidden' });
     }
 
-    const [attachments] = await db.promise().query('SELECT id, filename, mime_type, s3_key FROM attachments WHERE letter_id = ?', [id]);
+    const [attachments] = await db.promise().query(
+      'SELECT id, filename, mime_type, s3_key FROM attachments WHERE letter_id = ?',
+      [id]
+    );
 
+    // Setiap attachment dapet presigned URL — berlaku 5 menit
     const files = await Promise.all(attachments.map(async a => {
-      if (process.env.S3_BUCKET) {
+      try {
         const url = await getSignedUrl(
           s3,
-          new GetObjectCommand({ Bucket: process.env.S3_BUCKET, Key: a.s3_key }),
+          new GetObjectCommand({
+            Bucket: S3_BUCKET,
+            Key: a.s3_key,
+            ResponseContentDisposition: `attachment; filename="${sanitizeFilename(a.filename)}"`,
+          }),
           { expiresIn: 60 * 5 }
         );
         return { id: a.id, filename: a.filename, mime_type: a.mime_type, url };
+      } catch (e) {
+        // Kalau file di S3 nggak ada (misal data lama dari sebelum S3 diaktifkan),
+        // tetap kirim record tapi tanpa URL — biar frontend bisa nampilkan "tidak tersedia"
+        console.warn('[getLetter] presign failed for', a.s3_key, e.message);
+        return { id: a.id, filename: a.filename, mime_type: a.mime_type, url: null, missing: true };
       }
-      const base = process.env.BACKEND_URL || `http://localhost:${process.env.PORT || 3000}`;
-      const url = `${base}/uploads/${a.s3_key}`;
-      return { id: a.id, filename: a.filename, mime_type: a.mime_type, url };
     }));
 
     res.json({ letter, attachments: files });
   } catch (err) {
-    console.error(err);
+    console.error('[getLetter]', err);
     res.status(500).json({ message: 'Server error' });
   }
 };
@@ -118,11 +119,20 @@ exports.updateStatus = async (req, res) => {
   const { status } = req.body;
   const user = req.user;
   if (user.role !== 'officer') return res.status(403).json({ message: 'Forbidden' });
+
+  const allowed = ['submitted', 'processing', 'approved', 'rejected'];
+  if (!allowed.includes(status)) {
+    return res.status(400).json({ message: 'Invalid status' });
+  }
+
   try {
-    await db.promise().query('UPDATE letters SET status = ?, updated_at = NOW() WHERE id = ?', [status, id]);
+    await db.promise().query(
+      'UPDATE letters SET status = ?, updated_at = NOW() WHERE id = ?',
+      [status, id]
+    );
     res.json({ message: 'Status updated' });
   } catch (err) {
-    console.error(err);
+    console.error('[updateStatus]', err);
     res.status(500).json({ message: 'Server error' });
   }
 };
