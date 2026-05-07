@@ -8,7 +8,7 @@ export default function Dashboard({ user, onLogout }) {
   const defaultView = role === 'citizen' ? 'submit' : 'list'
   const [view, setView] = useState(defaultView)
 
-  // Stats fetched once from same endpoint LettersList uses — purely informational
+  // Stats fetched from same endpoint LettersList uses — display-only
   const [stats, setStats] = useState({ total: 0, submitted: 0, processing: 0, approved: 0, rejected: 0 })
   const [refreshKey, setRefreshKey] = useState(0)
 
