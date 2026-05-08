@@ -102,28 +102,58 @@ exports.getLetter = async (req, res) => {
       [id]
     );
 
-    // Setiap attachment dapet presigned URL dengan inline disposition — berlaku 5 menit
-    const files = await Promise.all(attachments.map(async a => {
-      try {
-        const url = await getSignedUrl(
-          s3,
-          new GetObjectCommand({
-            Bucket: S3_BUCKET,
-            Key: a.s3_key,
-            ResponseContentDisposition: getContentDisposition(a.mime_type, a.filename),
-          }),
-          { expiresIn: 60 * 5 }
-        );
-        return { id: a.id, filename: a.filename, mime_type: a.mime_type, url };
-      } catch (e) {
-        console.warn('[getLetter] presign failed for', a.s3_key, e.message);
-        return { id: a.id, filename: a.filename, mime_type: a.mime_type, url: null, missing: true };
-      }
+    // Setiap attachment dapet URL preview — endpoint yang akan redirect ke presigned S3
+    const files = attachments.map(a => ({
+      id: a.id,
+      filename: a.filename,
+      mime_type: a.mime_type,
+      url: `/api/letters/${id}/attachments/${a.id}/preview`,
     }));
 
     res.json({ letter, attachments: files });
   } catch (err) {
     console.error('[getLetter]', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+exports.previewAttachment = async (req, res) => {
+  const letterId = req.params.id;
+  const attachmentId = req.params.attachmentId;
+  const user = req.user;
+
+  try {
+    const [letters] = await db.promise().query('SELECT * FROM letters WHERE id = ?', [letterId]);
+    if (!letters.length) return res.status(404).json({ message: 'Not found' });
+
+    const letter = letters[0];
+    if (!canAccessAllLetters(user.role) && letter.user_id !== user.id) {
+      return res.status(403).json({ message: 'Forbidden' });
+    }
+
+    const [attachments] = await db.promise().query(
+      'SELECT id, filename, mime_type, s3_key FROM attachments WHERE id = ? AND letter_id = ? LIMIT 1',
+      [attachmentId, letterId]
+    );
+
+    if (!attachments.length) {
+      return res.status(404).json({ message: 'Attachment not found' });
+    }
+
+    const attachment = attachments[0];
+    const presignedUrl = await getSignedUrl(
+      s3,
+      new GetObjectCommand({
+        Bucket: S3_BUCKET,
+        Key: attachment.s3_key,
+        ResponseContentDisposition: getContentDisposition(attachment.mime_type, attachment.filename),
+      }),
+      { expiresIn: 60 * 5 }
+    );
+
+    res.redirect(presignedUrl);
+  } catch (err) {
+    console.error('[previewAttachment]', err);
     res.status(500).json({ message: 'Server error' });
   }
 };
