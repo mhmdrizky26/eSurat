@@ -2,19 +2,38 @@ version: '3.8'
 services:
   backend:
     build: ./backend
+    container_name: esurat-backend
     ports:
       - "3000:3000"
     env_file:
       - ./backend/.env
+    environment:
+      - NODE_ENV=production
+      - CORS_ORIGIN=http://localhost,http://localhost:5173
     restart: unless-stopped
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:3000/" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   frontend:
     build:
       context: ./frontend
+      dockerfile: Dockerfile
       args:
-        VITE_BACKEND_URL: http://backend:3000
+        VITE_BACKEND_URL: /api
+    container_name: esurat-frontend
     ports:
       - "5173:80"
+    environment:
+      - VITE_BACKEND_URL=/api
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     restart: unless-stopped
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost/" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5

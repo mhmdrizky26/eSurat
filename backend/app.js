@@ -11,7 +11,12 @@ const db = require('./config/db');
 const bcrypt = require('bcryptjs');
 
 app.use(helmet());
-app.use(cors());
+app.use(cors({
+  origin: process.env.CORS_ORIGIN || ['http://localhost:3000', 'http://localhost:5173', 'http://localhost'],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
 app.use(express.json());
 
 const limiter = rateLimit({ windowMs: 60 * 1000, max: 100 });
