@@ -1,7 +1,7 @@
 ﻿const db = require('../config/db');
 const { s3, S3_BUCKET } = require('../config/aws');
 const { PutObjectCommand, GetObjectCommand } = require('@aws-sdk/client-s3');
-const { pipeline } = require('stream/promises');
+const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 
 function canAccessAllLetters(role) {
   return role === 'officer';
@@ -102,62 +102,28 @@ exports.getLetter = async (req, res) => {
       [id]
     );
 
-    // Setiap attachment dapet presigned URL — berlaku 5 menit
+    // Setiap attachment dapet presigned URL dengan inline disposition — berlaku 5 menit
     const files = await Promise.all(attachments.map(async a => {
-      return {
-        id: a.id,
-        filename: a.filename,
-        mime_type: a.mime_type,
-        url: `/api/letters/${id}/attachments/${a.id}/open`,
-      };
+      try {
+        const url = await getSignedUrl(
+          s3,
+          new GetObjectCommand({
+            Bucket: S3_BUCKET,
+            Key: a.s3_key,
+            ResponseContentDisposition: getContentDisposition(a.mime_type, a.filename),
+          }),
+          { expiresIn: 60 * 5 }
+        );
+        return { id: a.id, filename: a.filename, mime_type: a.mime_type, url };
+      } catch (e) {
+        console.warn('[getLetter] presign failed for', a.s3_key, e.message);
+        return { id: a.id, filename: a.filename, mime_type: a.mime_type, url: null, missing: true };
+      }
     }));
 
     res.json({ letter, attachments: files });
   } catch (err) {
     console.error('[getLetter]', err);
-    res.status(500).json({ message: 'Server error' });
-  }
-};
-
-exports.openAttachment = async (req, res) => {
-  const letterId = req.params.id;
-  const attachmentId = req.params.attachmentId;
-  const user = req.user;
-
-  try {
-    const [letters] = await db.promise().query('SELECT * FROM letters WHERE id = ?', [letterId]);
-    if (!letters.length) return res.status(404).json({ message: 'Not found' });
-
-    const letter = letters[0];
-    if (!canAccessAllLetters(user.role) && letter.user_id !== user.id) {
-      return res.status(403).json({ message: 'Forbidden' });
-    }
-
-    const [attachments] = await db.promise().query(
-      'SELECT id, filename, mime_type, s3_key FROM attachments WHERE id = ? AND letter_id = ? LIMIT 1',
-      [attachmentId, letterId]
-    );
-
-    if (!attachments.length) {
-      return res.status(404).json({ message: 'Attachment not found' });
-    }
-
-    const attachment = attachments[0];
-    const result = await s3.send(new GetObjectCommand({
-      Bucket: S3_BUCKET,
-      Key: attachment.s3_key,
-    }));
-
-    if (!result.Body) {
-      return res.status(404).json({ message: 'Attachment stream not available' });
-    }
-
-    res.setHeader('Content-Type', attachment.mime_type || 'application/octet-stream');
-    res.setHeader('Content-Disposition', getContentDisposition(attachment.mime_type, attachment.filename));
-
-    await pipeline(result.Body, res);
-  } catch (err) {
-    console.error('[openAttachment]', err);
     res.status(500).json({ message: 'Server error' });
   }
 };
