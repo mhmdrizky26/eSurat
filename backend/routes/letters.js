@@ -38,6 +38,7 @@ function handleUpload(req, res, next) {
 router.post('/', authenticateToken, handleUpload, lettersController.createLetter);
 router.get('/', authenticateToken, lettersController.listLetters);
 router.get('/:id', authenticateToken, lettersController.getLetter);
+router.get('/:id/attachments/:attachmentId/open', authenticateToken, lettersController.openAttachment);
 router.put('/:id/status', authenticateToken, lettersController.updateStatus);
 
 module.exports = router;
