@@ -120,17 +120,8 @@ exports.getLetter = async (req, res) => {
 exports.previewAttachment = async (req, res) => {
   const letterId = req.params.id;
   const attachmentId = req.params.attachmentId;
-  const user = req.user;
 
   try {
-    const [letters] = await db.promise().query('SELECT * FROM letters WHERE id = ?', [letterId]);
-    if (!letters.length) return res.status(404).json({ message: 'Not found' });
-
-    const letter = letters[0];
-    if (!canAccessAllLetters(user.role) && letter.user_id !== user.id) {
-      return res.status(403).json({ message: 'Forbidden' });
-    }
-
     const [attachments] = await db.promise().query(
       'SELECT id, filename, mime_type, s3_key FROM attachments WHERE id = ? AND letter_id = ? LIMIT 1',
       [attachmentId, letterId]

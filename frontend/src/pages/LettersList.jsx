@@ -156,9 +156,7 @@ function Details({ id, token, isOfficer, currentStatus, fetchDetails, onStatusCh
 
   async function openPreview(url, filename) {
     try {
-      const res = await axios.get(url, {
-        headers: { Authorization: `Bearer ${token}` },
-      })
+      const res = await axios.get(url)
       window.open(res.data.url, '_blank', 'noopener,noreferrer')
     } catch (err) {
       alert('Gagal membuka lampiran: ' + (err.response?.data?.message || err.message || filename))
