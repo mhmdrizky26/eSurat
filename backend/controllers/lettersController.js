@@ -15,7 +15,14 @@ function sanitizeFilename(name) {
 // Tentukan Content-Disposition berdasarkan tipe file
 // inline = buka di browser, attachment = download
 function getContentDisposition(mimetype, filename) {
-  const inlineTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'application/pdf', 'text/plain'];
+  const inlineTypes = [
+    'image/jpeg', 'image/png', 'image/gif', 'image/webp',
+    'application/pdf', 'text/plain',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // .docx
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // .xlsx
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation', // .pptx
+    'application/msword', // .doc (older)
+  ];
   const safeName = sanitizeFilename(filename);
   const disposition = inlineTypes.includes(mimetype) ? 'inline' : 'attachment';
   return `${disposition}; filename="${safeName}"`;
