@@ -17,8 +17,8 @@ app.use(express.json());
 const limiter = rateLimit({ windowMs: 60 * 1000, max: 100 });
 app.use(limiter);
 
-// serve local uploads when S3 is not configured
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+// ❌ REMOVED: S3 URLs digunakan — tidak perlu static /uploads
+// app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 app.use('/api/auth', authRoutes);
 app.use('/api/letters', letterRoutes);
