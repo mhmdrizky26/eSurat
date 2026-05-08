@@ -154,6 +154,21 @@ function Details({ id, token, isOfficer, currentStatus, fetchDetails, onStatusCh
 
   const attachments = data.attachments || []
 
+  async function openAttachment(url, filename) {
+    try {
+      const res = await axios.get(url, {
+        headers: { Authorization: `Bearer ${token}` },
+        responseType: 'blob',
+      })
+
+      const blobUrl = URL.createObjectURL(res.data)
+      window.open(blobUrl, '_blank', 'noopener,noreferrer')
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000)
+    } catch (err) {
+      alert('Gagal membuka lampiran: ' + (err.response?.data?.message || err.message || filename))
+    }
+  }
+
   return (
     <div className="details">
       <span className="smallcaps">
@@ -167,7 +182,21 @@ function Details({ id, token, isOfficer, currentStatus, fetchDetails, onStatusCh
         <ul>
           {attachments.map(a => (
             <li key={a.id}>
-              📎 <a href={a.url} target="_blank" rel="noreferrer">{a.filename}</a>
+              📎 <button
+                type="button"
+                onClick={() => openAttachment(a.url, a.filename)}
+                style={{
+                  border: 'none',
+                  background: 'transparent',
+                  padding: 0,
+                  color: 'inherit',
+                  cursor: 'pointer',
+                  textDecoration: 'underline',
+                  font: 'inherit',
+                }}
+              >
+                {a.filename}
+              </button>
             </li>
           ))}
         </ul>
