@@ -154,15 +154,6 @@ function Details({ id, token, isOfficer, currentStatus, fetchDetails, onStatusCh
 
   const attachments = data.attachments || []
 
-  async function openPreview(url, filename) {
-    try {
-      const res = await axios.get(url)
-      window.open(res.data.url, '_blank', 'noopener,noreferrer')
-    } catch (err) {
-      alert('Gagal membuka lampiran: ' + (err.response?.data?.message || err.message || filename))
-    }
-  }
-
   return (
     <div className="details">
       <span className="smallcaps">
@@ -176,21 +167,7 @@ function Details({ id, token, isOfficer, currentStatus, fetchDetails, onStatusCh
         <ul>
           {attachments.map(a => (
             <li key={a.id}>
-              📎 <button
-                type="button"
-                onClick={() => openPreview(a.url, a.filename)}
-                style={{
-                  border: 'none',
-                  background: 'transparent',
-                  padding: 0,
-                  color: 'inherit',
-                  cursor: 'pointer',
-                  textDecoration: 'underline',
-                  font: 'inherit',
-                }}
-              >
-                {a.filename}
-              </button>
+              📎 <a href={a.url} target="_blank" rel="noreferrer">{a.filename}</a>
             </li>
           ))}
         </ul>
