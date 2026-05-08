@@ -151,7 +151,7 @@ exports.previewAttachment = async (req, res) => {
       { expiresIn: 60 * 5 }
     );
 
-    res.redirect(presignedUrl);
+    res.json({ url: presignedUrl });
   } catch (err) {
     console.error('[previewAttachment]', err);
     res.status(500).json({ message: 'Server error' });
