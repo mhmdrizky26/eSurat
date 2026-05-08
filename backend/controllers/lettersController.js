@@ -12,6 +12,15 @@ function sanitizeFilename(name) {
   return String(name).replace(/[^\w.\-]+/g, '_').slice(0, 120);
 }
 
+// Tentukan Content-Disposition berdasarkan tipe file
+// inline = buka di browser, attachment = download
+function getContentDisposition(mimetype, filename) {
+  const inlineTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'application/pdf', 'text/plain'];
+  const safeName = sanitizeFilename(filename);
+  const disposition = inlineTypes.includes(mimetype) ? 'inline' : 'attachment';
+  return `${disposition}; filename="${safeName}"`;
+}
+
 exports.createLetter = async (req, res) => {
   const { letter_type, subject, body } = req.body;
   const user = req.user;
@@ -36,7 +45,7 @@ exports.createLetter = async (req, res) => {
         Key: key,
         Body: file.buffer,           // langsung dari memory, tidak lewat disk
         ContentType: file.mimetype,
-        ContentDisposition: `attachment; filename="${safeName}"`,
+        ContentDisposition: getContentDisposition(file.mimetype, file.originalname),
       }));
 
       await conn.query(
@@ -94,7 +103,7 @@ exports.getLetter = async (req, res) => {
           new GetObjectCommand({
             Bucket: S3_BUCKET,
             Key: a.s3_key,
-            ResponseContentDisposition: `attachment; filename="${sanitizeFilename(a.filename)}"`,
+            ResponseContentDisposition: getContentDisposition(a.mime_type, a.filename),
           }),
           { expiresIn: 60 * 5 }
         );
